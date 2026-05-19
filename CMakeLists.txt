@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED)
 
 set(SOURCES
     src/main.cpp
+    src/util.h
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})
