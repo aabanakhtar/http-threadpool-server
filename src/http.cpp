@@ -5,12 +5,18 @@
 
 #include "util.h"
 
+constexpr static int BAD_FD = -1;
+
 HttpServer::HttpServer(std::uint16_t port)
     : port{port} {}
 
 HttpServer::~HttpServer() {
+    if (connection_fd == BAD_FD) {
+        return;
+    }
+
     close(connection_fd);
-    connection_fd = -1;
+    connection_fd = BAD_FD;
 }
 
 bool HttpServer::initialize() {
@@ -18,6 +24,7 @@ bool HttpServer::initialize() {
     if(auto fd = util::checkUnixCall(socket(AF_INET, SOCK_STREAM, 0), "socket")) {
         connection_fd = *fd;
     } else {
+        connection_fd = BAD_FD;
         return false; 
     }
 
@@ -47,7 +54,9 @@ bool HttpServer::initialize() {
     return true;
 
 failure:
+    // clean up from failed operation
     close(connection_fd);
+    connection_fd = BAD_FD;
     return false; 
 }
 
