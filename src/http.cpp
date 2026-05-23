@@ -8,7 +8,7 @@
 constexpr static int BAD_FD = -1;
 
 HttpServer::HttpServer(std::uint16_t port)
-    : port{port} {}
+    : port(port), thread_pool(2) {}
 
 HttpServer::~HttpServer() {
     if (connection_fd == BAD_FD) {
@@ -61,26 +61,41 @@ failure:
 }
 
 void HttpServer::startListening() {
-    static std::string http_200_ok = 
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html; charset=UTF-8\r\n"
-    "Content-Length: 122\r\n" // Updated to match the actual body length below
-    "\r\n"                    // CRITICAL: Empty line separating headers from body
-    "<!doctype html>\n"
-    "<html>\n"
-    "<head><title>Example</title></head>\n"
-    "<body>Welcome to Example.com</body>\n"
-    "</html>";
+
 
     while (true) {
         sockaddr_in client_ip_info;
         socklen_t size = sizeof(client_ip_info); 
 
         if (auto client_fd = util::checkUnixCall(accept(connection_fd, (sockaddr*)&client_ip_info, &size), "accept")) {
-            send(*client_fd, http_200_ok.c_str(), http_200_ok.length(), 0);
-            close(*client_fd);
+            // offload to worker thread
+            using namespace std::placeholders;
+            thread_pool.postTask(Task{
+                .task = std::bind(&HttpServer::handleRequestTask, this, _1),
+                .data = *client_fd,
+            }); 
         }
     }
     
 }
 
+std::mutex cout_mutex; 
+
+void HttpServer::handleRequestTask(int data) {
+    std::string content = "<h1>hello</h1>";
+    HttpResponse ok_200 {
+        .response_code = ResponseCode::OK, 
+        .content_type = ContentType::HTML,
+        .body = content
+    };
+    
+    int client_fd = data;
+
+    std::string response = ok_200.constructResponse();
+    send(client_fd, response.c_str(), response.size(), 0);
+
+    // send and ensure send completes before close
+    shutdown(client_fd, SHUT_WR);
+    close(client_fd);
+
+}

@@ -12,6 +12,7 @@ set(SOURCES
     src/http.cpp
     src/http.h
     src/threadpool.h
+    src/threadpool.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

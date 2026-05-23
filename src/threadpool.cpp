@@ -31,9 +31,9 @@ void ThreadPool::threadMain() {
         }
         
         try {
-            task.task();
+            task.task(task.data);
         } catch (...) {
-            std::cerr << "Task threw." << std::endl;
+            // do something idk.
         }
     }
 }
@@ -48,6 +48,7 @@ void ThreadPool::postTask(Task t) {
     // wake up one thread that is waiting on a task, handled internally
     cv.notify_one();
 }
+
 
 ThreadPool::~ThreadPool() {
     // set the termination condition true so threads can escape if no task left

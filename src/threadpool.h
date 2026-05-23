@@ -9,7 +9,8 @@
 #include <atomic>
 
 struct Task {
-    std::function<void()> task;
+    std::function<void(int)> task;
+    int data; // you could theoreticaly get anything into it with this
 };
 
 class ThreadPool {
@@ -31,8 +32,6 @@ private:
     std::vector<std::thread> workers;
     std::mutex pool_mutex;
     std::condition_variable cv;
-    std::condition_variable drain_cv;  
-    std::atomic_int active_tasks = 0; 
 
 };
 
