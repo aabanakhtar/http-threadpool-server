@@ -104,10 +104,19 @@ void HttpServer::handleRequestTask(int data) {
         std::cout << request.resource_uri << std::endl; 
     }
 
-
-    // TODO: use zero copy to send files
-    std::string response = ok_200.constructResponse();
-    send(client_fd, response.c_str(), response.size(), 0);
+    if (request.resource_uri == "/eat_mom") {
+        HttpResponse mom_eaten = {
+            .response_code = ResponseCode::OK, 
+            .content_type = ContentType::TEXT, 
+            .body = "Ur mom has been eaten! :O"
+        }; 
+        send(client_fd, mom_eaten.constructResponse().c_str(), mom_eaten.constructResponse().size(), 0);
+    }
+    else {
+        // TODO: use zero copy to send files
+        std::string response = ok_200.constructResponse();
+        send(client_fd, response.c_str(), response.size(), 0);
+    }
 
     // send and ensure send completes before close
     shutdown(client_fd, SHUT_WR);
