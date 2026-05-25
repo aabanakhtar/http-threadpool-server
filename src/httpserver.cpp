@@ -1,4 +1,4 @@
-#include "http.h" 
+#include "httpserver.h" 
 
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -6,6 +6,8 @@
 #include "util.h"
 
 constexpr static int BAD_FD = -1;
+
+
 
 HttpServer::HttpServer(std::uint16_t port)
     : port(port), thread_pool(2) {}
@@ -79,9 +81,11 @@ void HttpServer::startListening() {
     
 }
 
-std::mutex cout_mutex; 
+static std::mutex cout_mutex;
 
 void HttpServer::handleRequestTask(int data) {
+    constexpr static std::size_t BUF_SIZE = 4096;
+
     std::string content = "<h1>hello</h1>";
     HttpResponse ok_200 {
         .response_code = ResponseCode::OK, 
@@ -90,7 +94,18 @@ void HttpServer::handleRequestTask(int data) {
     };
     
     int client_fd = data;
+    char buffer[BUF_SIZE + 1] = {0}; 
+    std::size_t bytes_read = recv(client_fd, buffer, BUF_SIZE, 0); 
+    buffer[std::min(bytes_read, BUF_SIZE)] = 0;
 
+    HttpRequest request(buffer);
+    if (request.method != RequestMethod::BAD) {
+        std::lock_guard lck(cout_mutex); 
+        std::cout << request.resource_uri << std::endl; 
+    }
+
+
+    // TODO: use zero copy to send files
     std::string response = ok_200.constructResponse();
     send(client_fd, response.c_str(), response.size(), 0);
 
