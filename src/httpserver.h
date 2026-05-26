@@ -20,7 +20,7 @@ public:
 
 private:
     void handleRequestTask(int data);
-
+    void dispatchResponse();
 private:
     int connection_fd; 
     const std::uint16_t port;

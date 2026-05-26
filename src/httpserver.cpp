@@ -84,8 +84,6 @@ void HttpServer::startListening() {
 static std::mutex cout_mutex;
 
 void HttpServer::handleRequestTask(int data) {
-    constexpr static std::size_t BUF_SIZE = 4096;
-
     std::string content = "<h1>hello</h1>";
     HttpResponse ok_200 {
         .response_code = ResponseCode::OK, 
@@ -94,14 +92,34 @@ void HttpServer::handleRequestTask(int data) {
     };
     
     int client_fd = data;
-    char buffer[BUF_SIZE + 1] = {0}; 
-    std::size_t bytes_read = recv(client_fd, buffer, BUF_SIZE, 0); 
-    buffer[std::min(bytes_read, BUF_SIZE)] = 0;
+    //  char buffer[BUF_SIZE + 1] = {0};
 
-    HttpRequest request(buffer);
+    std::string request_str = "";
+    constexpr static int BUF_SIZE = 4096;
+    request_str.reserve(BUF_SIZE * 2);  
+
+    while (true) {
+        
+        char buffer[BUF_SIZE + 1];
+        ssize_t bytes_read = recv(client_fd, buffer, BUF_SIZE, 0); 
+
+        if (bytes_read > 0) {
+            request_str.append(buffer, bytes_read); // add to request
+        }     
+        
+        // client disconnect / delimeter found
+        if (request_str.contains("\r\n\r\n") || bytes_read == 0 || bytes_read < 0) {
+            break;
+        }
+    }
+
+    HttpRequest request(request_str);
+
     if (request.method != RequestMethod::BAD) {
-        std::lock_guard lck(cout_mutex); 
-        std::cout << request.resource_uri << std::endl; 
+        std::lock_guard lck(cout_mutex);
+        std::cout << request_str << std::endl; 
+        std::cout << (int)request.method << std::endl; 
+        std::cout << request.resource_uri << std::endl;
     }
 
     if (request.resource_uri == "/eat_mom") {
