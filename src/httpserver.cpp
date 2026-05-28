@@ -2,6 +2,8 @@
 
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <fstream>
+#include <filesystem>
 
 #include "util.h"
 
@@ -10,7 +12,7 @@ constexpr static int BAD_FD = -1;
 
 
 HttpServer::HttpServer(std::uint16_t port)
-    : port(port), thread_pool(2) {}
+    : port(port), thread_pool() {}
 
 HttpServer::~HttpServer() {
     if (connection_fd == BAD_FD) {
@@ -33,7 +35,7 @@ bool HttpServer::initialize() {
     int enable = 1; 
     // make ip reusable instantly so theres no cool-off period  
     if (!(util::checkUnixCall(setsockopt(connection_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)), "setsockopt")
-            && util::checkUnixCall(setsockopt(connection_fd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)), "setsockopt"))) {
+            && util::checkUnixCall(setsockopt(connection_fd, SOL_SOCKET, SO_REUSEPORT, &enable, sizeof(enable)), "setsockopt"))) {
         goto failure;
     }
 
@@ -63,7 +65,7 @@ failure:
 }
 
 void HttpServer::startListening() {
-
+    std::osyncstream(std::cout) << "Started listening on port 8080!\n"; 
 
     while (true) {
         sockaddr_in client_ip_info;
@@ -81,9 +83,8 @@ void HttpServer::startListening() {
     
 }
 
-static std::mutex cout_mutex;
 
-void HttpServer::handleRequestTask(int data) {
+void HttpServer::handleRequestTask(int client) {
     std::string content = "<h1>hello</h1>";
     HttpResponse ok_200 {
         .response_code = ResponseCode::OK, 
@@ -91,7 +92,7 @@ void HttpServer::handleRequestTask(int data) {
         .body = content
     };
     
-    int client_fd = data;
+    int client_fd = client;
     //  char buffer[BUF_SIZE + 1] = {0};
 
     std::string request_str = "";
@@ -107,37 +108,90 @@ void HttpServer::handleRequestTask(int data) {
             request_str.append(buffer, bytes_read); // add to request
         }     
         
-        // client disconnect / delimeter found
-        if (request_str.contains("\r\n\r\n") || bytes_read == 0 || bytes_read < 0) {
+        // client disconnect / delimeter found / error
+        // EINTR is an error in which "signals" briefly interrupt a task from continuing and is recoverable.
+        if (request_str.contains("\r\n\r\n") || bytes_read == 0 || bytes_read < 0 && errno != EINTR) {
             break;
         }
     }
 
     HttpRequest request(request_str);
-
-    if (request.method != RequestMethod::BAD) {
-        std::lock_guard lck(cout_mutex);
-        std::cout << request_str << std::endl; 
-        std::cout << (int)request.method << std::endl; 
-        std::cout << request.resource_uri << std::endl;
-    }
-
-    if (request.resource_uri == "/eat_mom") {
-        HttpResponse mom_eaten = {
-            .response_code = ResponseCode::OK, 
-            .content_type = ContentType::TEXT, 
-            .body = "Ur mom has been eaten! :O"
-        }; 
-        send(client_fd, mom_eaten.constructResponse().c_str(), mom_eaten.constructResponse().size(), 0);
-    }
-    else {
-        // TODO: use zero copy to send files
-        std::string response = ok_200.constructResponse();
-        send(client_fd, response.c_str(), response.size(), 0);
-    }
+    dispatchResponse(client_fd, request);
 
     // send and ensure send completes before close
     shutdown(client_fd, SHUT_WR);
     close(client_fd);
 
+}
+
+
+void HttpServer::dispatchResponse(const int client, const HttpRequest& req) {
+    HttpResponse response; 
+
+    // generate a rsponse based on what the client requests based on method
+    switch (req.method) {
+        case RequestMethod::GET:
+            httpGet(req, response);
+            break;
+        default: 
+            response = HttpResponse {
+                .response_code = ResponseCode::BAD_REQUEST, 
+                .content_type = ContentType::TEXT,
+                .body = "400, bad request" 
+            };
+            break;
+    }
+
+    // construct the response and send it over
+    std::string response_str = response.constructResponse();
+    send(client, response_str.c_str(), response_str.size(), 0); //MSG_ZEROCOPY?; 
+}
+
+void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) {
+    // go the the default webpage, i.e, the index html
+    // build the working directory for public content
+    // and the index page
+    static const std::string content_root = std::string(std::filesystem::current_path()) + content_directory;
+    static const std::string directory_index_path = content_root + directory_index.path;
+
+    // case 1: we get a request for the default page, check if it exists
+    if (req.resource_uri == "/" && std::filesystem::exists(directory_index_path)) {
+        std::ifstream file(directory_index_path);
+
+        response = HttpResponse {
+            .response_code = ResponseCode::OK, 
+            .content_type = directory_index.type, 
+            .body = std::string(std::istreambuf_iterator<char>{file}, {}) 
+        };
+        
+        file.close();
+    }
+    // otherwise now just return 404 
+    else {
+        // check for user bound error page
+        if (error_pages.contains(ResponseCode::NOT_FOUND)) {
+            // load the user defined page
+            HttpPage user_page = error_pages[ResponseCode::NOT_FOUND]; 
+
+            // create the file
+            std::string page_path = content_root + user_page.path;
+            std::ifstream user_404_page_file(page_path);
+
+            response = HttpResponse {
+                .response_code = ResponseCode::NOT_FOUND, 
+                .content_type = user_page.type, 
+                .body = std::string(std::istreambuf_iterator<char>{user_404_page_file}, {}) 
+            };
+
+        }
+        else {
+            // just use a basic one 
+            response = HttpResponse {
+                .response_code = ResponseCode::NOT_FOUND, 
+                .content_type = ContentType::TEXT,
+                .body = "404 not found."
+            };
+        }
+        
+    }
 }

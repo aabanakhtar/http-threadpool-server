@@ -7,6 +7,7 @@
 #include <cstring>
 #include <optional>
 
+
 namespace util {
 
     constexpr inline std::optional<int> checkUnixCall(int result, const std::string& syscall_name) {

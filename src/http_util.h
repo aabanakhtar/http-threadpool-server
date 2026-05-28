@@ -7,7 +7,8 @@
 
 enum class ResponseCode {
     OK = 200,
-    BAD_REQUEST = 400
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
 };
 
 enum class ContentType {
@@ -60,7 +61,9 @@ struct HttpResponse {
 
     // string_view removes allocs
     const inline static std::unordered_map<ResponseCode, std::string_view> code_to_meta = {
-        {ResponseCode::OK, "200 OK"}
+        {ResponseCode::OK, "200 OK"},
+        {ResponseCode::BAD_REQUEST, "400 Bad Request"},
+        {ResponseCode::NOT_FOUND, "404 Not Found"}
     };    
 
     const inline static std::unordered_map<ContentType, std::string_view> content_type_to_meta = {
@@ -69,6 +72,12 @@ struct HttpResponse {
     };
 
     std::string constructResponse(); 
+};
+
+// utility struct for setting up default pages like 404, index, etc.
+struct HttpPage {
+    ContentType type = ContentType::TEXT; 
+    std::string path = ""; 
 };
 
 #endif // HTTP_UTIL_H
