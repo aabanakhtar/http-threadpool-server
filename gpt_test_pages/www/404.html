@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>404 • Page Not Found</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      background: linear-gradient(135deg, #020617, #0f172a 45%, #1e293b);
+      font-family: 'Inter', sans-serif;
+      color: #f8fafc;
+    }
+
+    .glow {
+      position: absolute;
+      width: 450px;
+      height: 450px;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.65;
+      z-index: 0;
+    }
+
+    .glow.one {
+      top: -150px;
+      left: -120px;
+      background: radial-gradient(circle, rgba(99,102,241,0.45), transparent 70%);
+    }
+
+    .glow.two {
+      bottom: -180px;
+      right: -100px;
+      background: radial-gradient(circle, rgba(14,165,233,0.35), transparent 70%);
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      width: min(92%, 760px);
+      padding: 4rem;
+      border-radius: 32px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 25px 70px rgba(0,0,0,0.45);
+      text-align: center;
+    }
+
+    .error-code {
+      font-size: clamp(5rem, 16vw, 10rem);
+      font-weight: 800;
+      letter-spacing: -0.08em;
+      line-height: 1;
+      background: linear-gradient(180deg, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      margin-bottom: 1rem;
+      letter-spacing: -0.04em;
+    }
+
+    p {
+      color: #cbd5e1;
+      font-size: 1.1rem;
+      line-height: 1.7;
+      max-width: 540px;
+      margin: 0 auto 2.5rem;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      text-decoration: none;
+      padding: 0.95rem 1.8rem;
+      border-radius: 14px;
+      font-weight: 600;
+      transition: all 0.25s ease;
+    }
+
+    .primary {
+      background: #6366f1;
+      color: white;
+      box-shadow: 0 12px 30px rgba(99,102,241,0.35);
+    }
+
+    .primary:hover {
+      transform: translateY(-2px);
+      background: #7c7ff7;
+    }
+
+    .secondary {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #e2e8f0;
+    }
+
+    .secondary:hover {
+      transform: translateY(-2px);
+      background: rgba(255,255,255,0.1);
+    }
+
+    .floating-shape {
+      position: absolute;
+      border-radius: 24px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+      animation: float 8s ease-in-out infinite;
+    }
+
+    .shape-one {
+      width: 90px;
+      height: 90px;
+      top: 12%;
+      right: 14%;
+      transform: rotate(12deg);
+    }
+
+    .shape-two {
+      width: 60px;
+      height: 60px;
+      bottom: 18%;
+      left: 12%;
+      transform: rotate(-18deg);
+      animation-delay: 2s;
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0px) rotate(12deg);
+      }
+      50% {
+        transform: translateY(-14px) rotate(18deg);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .card {
+        padding: 2.5rem 1.5rem;
+      }
+
+      p {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow one"></div>
+  <div class="glow two"></div>
+
+  <div class="floating-shape shape-one"></div>
+  <div class="floating-shape shape-two"></div>
+
+  <main class="card">
+    <div class="error-code">404</div>
+
+    <h1>Page Not Found</h1>
+
+    <p>
+      The page you're looking for doesn't exist or may have been moved.
+      It might be a broken link, a typo, or something lost in the void.
+    </p>
+
+    <div class="actions">
+      <a href="/" class="btn primary">Return Home</a>
+      <a href="#" onclick="history.back()" class="btn secondary">Go Back</a>
+    </div>
+  </main>
+</body>
+</html>

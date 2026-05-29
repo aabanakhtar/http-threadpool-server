@@ -9,6 +9,7 @@ enum class ResponseCode {
     OK = 200,
     BAD_REQUEST = 400,
     NOT_FOUND = 404,
+    FORBIDDEN = 403
 };
 
 enum class ContentType {
@@ -60,13 +61,14 @@ struct HttpResponse {
 
 
     // string_view removes allocs
-    const inline static std::unordered_map<ResponseCode, std::string_view> code_to_meta = {
+    const inline static std::unordered_map<ResponseCode, std::string> code_to_meta = {
         {ResponseCode::OK, "200 OK"},
         {ResponseCode::BAD_REQUEST, "400 Bad Request"},
-        {ResponseCode::NOT_FOUND, "404 Not Found"}
+        {ResponseCode::NOT_FOUND, "404 Not Found"},
+        {ResponseCode::FORBIDDEN, "403 Forbidden"}
     };    
 
-    const inline static std::unordered_map<ContentType, std::string_view> content_type_to_meta = {
+    const inline static std::unordered_map<ContentType, std::string> content_type_to_meta = {
         {ContentType::HTML, "text/html; charset=UTF-8"}, 
         {ContentType::TEXT, "text/plain; charset=UTF-8"}
     };

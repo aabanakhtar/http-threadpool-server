@@ -84,17 +84,8 @@ void HttpServer::startListening() {
 }
 
 
-void HttpServer::handleRequestTask(int client) {
-    std::string content = "<h1>hello</h1>";
-    HttpResponse ok_200 {
-        .response_code = ResponseCode::OK, 
-        .content_type = ContentType::HTML,
-        .body = content
-    };
-    
+void HttpServer::handleRequestTask(int client) const {
     int client_fd = client;
-    //  char buffer[BUF_SIZE + 1] = {0};
-
     std::string request_str = "";
     constexpr static int BUF_SIZE = 4096;
     request_str.reserve(BUF_SIZE * 2);  
@@ -125,7 +116,7 @@ void HttpServer::handleRequestTask(int client) {
 }
 
 
-void HttpServer::dispatchResponse(const int client, const HttpRequest& req) {
+void HttpServer::dispatchResponse(const int client, const HttpRequest& req) const {
     HttpResponse response; 
 
     // generate a rsponse based on what the client requests based on method
@@ -147,12 +138,18 @@ void HttpServer::dispatchResponse(const int client, const HttpRequest& req) {
     send(client, response_str.c_str(), response_str.size(), 0); //MSG_ZEROCOPY?; 
 }
 
-void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) {
+void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
     // go the the default webpage, i.e, the index html
     // build the working directory for public content
     // and the index page
-    static const std::string content_root = std::string(std::filesystem::current_path()) + content_directory;
-    static const std::string directory_index_path = content_root + directory_index.path;
+
+    std::error_code ec; 
+
+    const auto content_root = std::string(std::filesystem::current_path()) + content_directory;
+    // the "index page"
+    const std::string directory_index_path = content_root + directory_index.path;
+    // for files besides, index. canocalized makes sure we don't have redirection attacks
+    const std::string file_directory = content_root + req.resource_uri;
 
     // case 1: we get a request for the default page, check if it exists
     if (req.resource_uri == "/" && std::filesystem::exists(directory_index_path)) {
@@ -165,33 +162,51 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) {
         };
         
         file.close();
+    } 
+    // case 2: we have to retrieve a file 
+    else if(req.resource_uri != "/" && std::filesystem::exists(file_directory) && util::isPathSafe(content_root, req.resource_uri)) {
+        std::ifstream file(file_directory);
+
+        response = HttpResponse {
+            .response_code = ResponseCode::OK, 
+            .content_type = directory_index.type, 
+            .body = std::string(std::istreambuf_iterator<char>{file}, {}) 
+        };
+        
+        file.close();           
     }
     // otherwise now just return 404 
     else {
-        // check for user bound error page
-        if (error_pages.contains(ResponseCode::NOT_FOUND)) {
-            // load the user defined page
-            HttpPage user_page = error_pages[ResponseCode::NOT_FOUND]; 
+        // generates user page if possible
+        generateErrorPage(ResponseCode::NOT_FOUND, response); 
+    }
+}
 
-            // create the file
-            std::string page_path = content_root + user_page.path;
-            std::ifstream user_404_page_file(page_path);
+void HttpServer::generateErrorPage(const ResponseCode error_code, HttpResponse& response) const {
+    const auto content_root = std::string(std::filesystem::current_path()) + content_directory;
+    
+    if (error_pages.contains(error_code)) {
+        // load the user defined page
+        HttpPage user_page = error_pages.at(error_code); 
 
-            response = HttpResponse {
-                .response_code = ResponseCode::NOT_FOUND, 
-                .content_type = user_page.type, 
-                .body = std::string(std::istreambuf_iterator<char>{user_404_page_file}, {}) 
-            };
+        // create the file
+        std::string page_path = content_root + user_page.path;
+        std::ifstream error_page_file(page_path);
 
-        }
-        else {
-            // just use a basic one 
-            response = HttpResponse {
-                .response_code = ResponseCode::NOT_FOUND, 
-                .content_type = ContentType::TEXT,
-                .body = "404 not found."
-            };
-        }
-        
+        response = HttpResponse {
+            .response_code = error_code, 
+            .content_type = user_page.type, 
+            .body = std::string(std::istreambuf_iterator<char>{error_page_file}, {}) 
+        };
+
+    }
+    else {
+        std::string meta = HttpResponse::code_to_meta.at(error_code);
+        // just use a basic one 
+        response = HttpResponse {
+            .response_code = error_code, 
+            .content_type = ContentType::TEXT,
+            .body = std::move(meta) 
+        };
     }
 }

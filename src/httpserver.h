@@ -38,19 +38,21 @@ public:
     }
 
 private:
-    void handleRequestTask(int client); 
-    void dispatchResponse(const int client, const HttpRequest& request);
+    void handleRequestTask(int client) const; 
+    void dispatchResponse(const int client, const HttpRequest& request) const;
 
+    // tries to create a user error page if possible, otherwise falls back to text-based simple descriptions of the error.
+    void generateErrorPage(const ResponseCode error_code, HttpResponse& response) const;
 
     // http methods
-    void httpGet(const HttpRequest& req, HttpResponse& response);
+    void httpGet(const HttpRequest& req, HttpResponse& response) const;
+
 
 private:
     int connection_fd; 
     const std::uint16_t port;
     ThreadPool thread_pool;
     std::string content_directory = "/www/"; 
-
 
     // todo: make bindings
     HttpPage directory_index = HttpPage{
