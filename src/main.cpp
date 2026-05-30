@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
         .type = ContentType::HTML,
         .path = "index.html",
     });
-
+    
     service.createErrorPageBinding(ResponseCode::NOT_FOUND, HttpPage{
         .type = ContentType::HTML,
         .path = "404.html", 

@@ -150,6 +150,13 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
     const std::string directory_index_path = content_root + directory_index.path;
     // for files besides, index. canocalized makes sure we don't have redirection attacks
     const std::string file_directory = content_root + req.resource_uri;
+    // gets rid of the first character "/" in http requests so we can use the path when checking for directory traversal attacks
+    // in unix "/" is an absolute path and it wont work with std::filesystem properly
+    std::string non_absolute_resource_uri = req.resource_uri; 
+    if (non_absolute_resource_uri.size() > 0) {
+        non_absolute_resource_uri.erase(0, 1);
+    }
+
 
     // case 1: we get a request for the default page, check if it exists
     if (req.resource_uri == "/" && std::filesystem::exists(directory_index_path)) {
@@ -164,7 +171,7 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
         file.close();
     } 
     // case 2: we have to retrieve a file 
-    else if(req.resource_uri != "/" && std::filesystem::exists(file_directory) && util::isPathSafe(content_root, req.resource_uri)) {
+    else if(req.resource_uri != "/" && std::filesystem::exists(file_directory) && util::isPathSafe(content_root, non_absolute_resource_uri)) {
         std::ifstream file(file_directory);
 
         response = HttpResponse {
@@ -174,6 +181,10 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
         };
         
         file.close();           
+    } 
+    // if they try to redirect out, send a 403 forbidden 
+    else if (req.resource_uri != "/" && !util::isPathSafe(content_root, non_absolute_resource_uri)) {
+        generateErrorPage(ResponseCode::FORBIDDEN, response);
     }
     // otherwise now just return 404 
     else {

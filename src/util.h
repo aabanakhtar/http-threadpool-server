@@ -26,8 +26,21 @@ namespace util {
     }
 
     // TODO: unit test w/ catch 2?
+    // Makes sure that paths are proper and are not illegitimate / attempts to redirect out of the server's public files
     inline bool isPathSafe(const std::filesystem::path& root, const std::filesystem::path& access_dir) {
-        return true;
+        // no absolute paths should be used
+        if (access_dir.is_absolute()) {
+            return false;
+        }
+
+        auto canonicalized_base = std::filesystem::weakly_canonical(root); 
+        auto canonicalized_access = std::filesystem::weakly_canonical(canonicalized_base / access_dir); 
+        
+        // checks for mismatches in the individual directory folders 
+        auto it = std::mismatch(canonicalized_base.begin(), canonicalized_base.end(), canonicalized_access.begin());
+        // checks if no mismatch found?
+        // mismatch has two iterators
+        return it.first == canonicalized_base.end();
     }
 }
 
