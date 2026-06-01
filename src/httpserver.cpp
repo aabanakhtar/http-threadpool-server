@@ -160,7 +160,7 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
 
     // case 1: we get a request for the default page, check if it exists
     if (req.resource_uri == "/" && std::filesystem::exists(directory_index_path)) {
-        std::ifstream file(directory_index_path);
+        std::ifstream file(directory_index_path, std::ios::binary);
 
         response = HttpResponse {
             .response_code = ResponseCode::OK, 
@@ -172,13 +172,22 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
     } 
     // case 2: we have to retrieve a file 
     else if(req.resource_uri != "/" && std::filesystem::exists(file_directory) && util::isPathSafe(content_root, non_absolute_resource_uri)) {
-        std::ifstream file(file_directory);
+        std::ifstream file(file_directory, std::ios::binary);
+        
+        // ensure the filetype is supported
+        auto ftype = HttpResponse::ext_to_content_type.find(
+            std::filesystem::path(file_directory).extension());
 
-        response = HttpResponse {
-            .response_code = ResponseCode::OK, 
-            .content_type = directory_index.type, 
-            .body = std::string(std::istreambuf_iterator<char>{file}, {}) 
-        };
+        if (ftype != HttpResponse::ext_to_content_type.end()) {
+            response = HttpResponse {
+                .response_code = ResponseCode::OK, 
+                .content_type = ftype->second,                 // use the determined filetype
+                .body = std::string(std::istreambuf_iterator<char>{file}, {}) 
+            };   
+        } else {
+            generateErrorPage(ResponseCode::UNSUPPORTED_MIME_TYPE, response);
+        }
+
         
         file.close();           
     } 

@@ -46,6 +46,7 @@ private:
 
     // http methods
     void httpGet(const HttpRequest& req, HttpResponse& response) const;
+    // retrieves the file does the response making
 
 
 private:

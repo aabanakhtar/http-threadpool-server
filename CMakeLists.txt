@@ -9,6 +9,7 @@ set(SOURCES
     src/main.cpp
     src/httpserver.cpp
     src/threadpool.cpp
+    src/file_cache.h
 )
 
 set(HEADERS

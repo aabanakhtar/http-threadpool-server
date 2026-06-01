@@ -9,12 +9,14 @@ enum class ResponseCode {
     OK = 200,
     BAD_REQUEST = 400,
     NOT_FOUND = 404,
-    FORBIDDEN = 403
+    FORBIDDEN = 403, 
+    UNSUPPORTED_MIME_TYPE = 415 // we dont have all the content-types
 };
 
 enum class ContentType {
     HTML, 
-    TEXT
+    TEXT,
+    PNG // TODO:
 };
 
 
@@ -65,12 +67,20 @@ struct HttpResponse {
         {ResponseCode::OK, "200 OK"},
         {ResponseCode::BAD_REQUEST, "400 Bad Request"},
         {ResponseCode::NOT_FOUND, "404 Not Found"},
-        {ResponseCode::FORBIDDEN, "403 Forbidden"}
+        {ResponseCode::FORBIDDEN, "403 Forbidden"},
+        {ResponseCode::UNSUPPORTED_MIME_TYPE, "415 Unsupported Media Type"}
     };    
+
+    const inline static std::unordered_map<std::string, ContentType> ext_to_content_type = {
+        {".txt", ContentType::TEXT}, 
+        {".html", ContentType::HTML}, 
+        {".png", ContentType::PNG}
+    };
 
     const inline static std::unordered_map<ContentType, std::string> content_type_to_meta = {
         {ContentType::HTML, "text/html; charset=UTF-8"}, 
-        {ContentType::TEXT, "text/plain; charset=UTF-8"}
+        {ContentType::TEXT, "text/plain; charset=UTF-8"},
+        {ContentType::PNG, "image/png"}
     };
 
     std::string constructResponse(); 

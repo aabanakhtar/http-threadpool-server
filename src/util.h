@@ -42,6 +42,7 @@ namespace util {
         // mismatch has two iterators
         return it.first == canonicalized_base.end();
     }
+
 }
 
 #endif // UTIL_H
