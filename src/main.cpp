@@ -8,13 +8,11 @@
 #include "httpserver.h"
 #include <signal.h>
 
-using namespace std::chrono_literals;
-
 int main(int argc, char** argv) {
     // prevent closed connections from yeeting us into the unknown
     signal(SIGPIPE, SIG_IGN);
 
-    HttpServer service(6767);
+    HttpServer service(8080);
 
     service.setContentDirectory("/www/");
     service.setDirectoryIndex(HttpPage{

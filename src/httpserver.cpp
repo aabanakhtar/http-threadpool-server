@@ -11,8 +11,6 @@
 
 constexpr static int BAD_FD = -1;
 
-
-
 HttpServer::HttpServer(std::uint16_t port)
     : port(port), thread_pool() {}
 
@@ -139,8 +137,8 @@ void HttpServer::dispatchResponse(const int client, const HttpRequest& req) cons
     // construct the response and send it over
     std::string response_head = response.constructHead();
     send(client, response_head.c_str(), response_head.size(), 0); //MSG_ZEROCOPY?;
-
-    std::visit([=](auto&& arg) {
+    // send the body if needed
+    std::visit([&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
 
         if constexpr (std::is_same_v<T, std::string>) {

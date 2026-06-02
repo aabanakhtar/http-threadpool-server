@@ -37,6 +37,8 @@ public:
         error_pages[errorCode] = page; 
     }
 
+    void enableMetrics() { enable_metrics = true; }
+
 private:
     void handleRequestTask(int client) const; 
     void dispatchResponse(const int client, const HttpRequest& request) const;
@@ -48,12 +50,12 @@ private:
     void httpGet(const HttpRequest& req, HttpResponse& response) const;
     // retrieves the file does the response making
 
-
 private:
     int connection_fd; 
     const std::uint16_t port;
     ThreadPool thread_pool;
     std::string content_directory = "/www/"; 
+    bool enable_metrics = false;
 
     // todo: make bindings
     HttpPage directory_index = HttpPage{
