@@ -61,8 +61,7 @@ private:
         .path = "", 
     };
 
-    std::unordered_map<ResponseCode, HttpPage> error_pages = {
-    }; 
+    std::unordered_map<ResponseCode, HttpPage> error_pages = {}; 
 };
 
 #endif // HTTP_H

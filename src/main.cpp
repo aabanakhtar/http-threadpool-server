@@ -6,11 +6,15 @@
 
 #include "util.h"
 #include "httpserver.h"
+#include <signal.h>
 
 using namespace std::chrono_literals;
 
 int main(int argc, char** argv) {
-    HttpServer service(8080);
+    // prevent closed connections from yeeting us into the unknown
+    signal(SIGPIPE, SIG_IGN);
+
+    HttpServer service(6767);
 
     service.setContentDirectory("/www/");
     service.setDirectoryIndex(HttpPage{

@@ -8,6 +8,7 @@
 #include <optional>
 #include <syncstream>
 #include <filesystem>
+#include <sys/stat.h>
 
 namespace util {
 
@@ -41,6 +42,16 @@ namespace util {
         // checks if no mismatch found?
         // mismatch has two iterators
         return it.first == canonicalized_base.end();
+    }
+
+    // uses stat to get file size
+    inline long long fileSize(int fd) {
+        struct stat st;
+        if (fstat(fd, &st)) {
+            return -1;
+        }
+
+        return st.st_size;
     }
 
 }

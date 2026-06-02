@@ -1,11 +1,13 @@
-#include "httpserver.h" 
 
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <fstream>
 #include <filesystem>
+#include <sys/sendfile.h>
+#include <fcntl.h>
 
 #include "util.h"
+#include "httpserver.h" 
 
 constexpr static int BAD_FD = -1;
 
@@ -65,7 +67,7 @@ failure:
 }
 
 void HttpServer::startListening() {
-    std::osyncstream(std::cout) << "Started listening on port 8080!\n"; 
+    std::osyncstream(std::cout) << "Started listening on port" << port << "!\n"; 
 
     while (true) {
         sockaddr_in client_ip_info;
@@ -86,12 +88,14 @@ void HttpServer::startListening() {
 
 void HttpServer::handleRequestTask(int client) const {
     int client_fd = client;
+
+    // build a buffer for the message
     std::string request_str = "";
     constexpr static int BUF_SIZE = 4096;
     request_str.reserve(BUF_SIZE * 2);  
 
     while (true) {
-        
+        // read loop 
         char buffer[BUF_SIZE + 1];
         ssize_t bytes_read = recv(client_fd, buffer, BUF_SIZE, 0); 
 
@@ -110,7 +114,6 @@ void HttpServer::handleRequestTask(int client) const {
     dispatchResponse(client_fd, request);
 
     // send and ensure send completes before close
-    shutdown(client_fd, SHUT_WR);
     close(client_fd);
 
 }
@@ -128,22 +131,30 @@ void HttpServer::dispatchResponse(const int client, const HttpRequest& req) cons
             response = HttpResponse {
                 .response_code = ResponseCode::BAD_REQUEST, 
                 .content_type = ContentType::TEXT,
-                .body = "400, bad request" 
+                .body_variant = std::string("400, bad request")
             };
             break;
     }
 
     // construct the response and send it over
-    std::string response_str = response.constructResponse();
-    send(client, response_str.c_str(), response_str.size(), 0); //MSG_ZEROCOPY?; 
+    std::string response_head = response.constructHead();
+    send(client, response_head.c_str(), response_head.size(), 0); //MSG_ZEROCOPY?;
+
+    std::visit([=](auto&& arg) {
+        using T = std::decay_t<decltype(arg)>;
+
+        if constexpr (std::is_same_v<T, std::string>) {
+            send(client, arg.c_str(), arg.size(), 0); 
+        } else if constexpr (std::is_same_v<T, FileDescriptor>) {
+            sendfile(client, arg, NULL, util::fileSize(arg));
+            close(arg); // get rid of the file once we're done with it
+        }
+    }, response.body_variant);
 }
 
 void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
-    // go the the default webpage, i.e, the index html
     // build the working directory for public content
     // and the index page
-
-    std::error_code ec; 
 
     const auto content_root = std::string(std::filesystem::current_path()) + content_directory;
     // the "index page"
@@ -160,37 +171,47 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
 
     // case 1: we get a request for the default page, check if it exists
     if (req.resource_uri == "/" && std::filesystem::exists(directory_index_path)) {
-        std::ifstream file(directory_index_path, std::ios::binary);
 
-        response = HttpResponse {
-            .response_code = ResponseCode::OK, 
-            .content_type = directory_index.type, 
-            .body = std::string(std::istreambuf_iterator<char>{file}, {}) 
-        };
-        
-        file.close();
+        FileDescriptor fd = open(directory_index_path.c_str(), O_RDONLY);
+
+        // somehting has to have went wrong for this to be true
+        if (fd == BAD_FD) {
+            generateErrorPage(ResponseCode::INTERNAL_SERVER_ERROR, response);
+        } else {
+            response = HttpResponse {
+                .response_code = ResponseCode::OK, 
+                .content_type = directory_index.type, 
+                .body_variant = fd
+            };
+        }
     } 
     // case 2: we have to retrieve a file 
     else if(req.resource_uri != "/" && std::filesystem::exists(file_directory) && util::isPathSafe(content_root, non_absolute_resource_uri)) {
-        std::ifstream file(file_directory, std::ios::binary);
-        
+        FileDescriptor fd = open(file_directory.c_str(), O_RDONLY); 
         // ensure the filetype is supported
         auto ftype = HttpResponse::ext_to_content_type.find(
             std::filesystem::path(file_directory).extension());
-
-        if (ftype != HttpResponse::ext_to_content_type.end()) {
+            
+        
+        // if ftype is supported, send it
+        if (ftype != HttpResponse::ext_to_content_type.end() && fd != BAD_FD) {
             response = HttpResponse {
                 .response_code = ResponseCode::OK, 
                 .content_type = ftype->second,                 // use the determined filetype
-                .body = std::string(std::istreambuf_iterator<char>{file}, {}) 
+                .body_variant = fd
             };   
-        } else {
+        } 
+        // something went horribly wrong with opening the file
+        else if (fd == BAD_FD) {
+            generateErrorPage(ResponseCode::INTERNAL_SERVER_ERROR, response); 
+        }
+        // unsupported file type
+        else {
             generateErrorPage(ResponseCode::UNSUPPORTED_MIME_TYPE, response);
+            close(fd); // don't leak anything
         }
 
-        
-        file.close();           
-    } 
+    }
     // if they try to redirect out, send a 403 forbidden 
     else if (req.resource_uri != "/" && !util::isPathSafe(content_root, non_absolute_resource_uri)) {
         generateErrorPage(ResponseCode::FORBIDDEN, response);
@@ -204,29 +225,35 @@ void HttpServer::httpGet(const HttpRequest& req, HttpResponse& response) const {
 
 void HttpServer::generateErrorPage(const ResponseCode error_code, HttpResponse& response) const {
     const auto content_root = std::string(std::filesystem::current_path()) + content_directory;
-    
+    // default internal page setup
+    const std::string meta = HttpResponse::code_to_meta.at(error_code);
+    const auto default_error_page = HttpResponse {
+        .response_code = error_code, 
+        .content_type = ContentType::TEXT,
+        .body_variant = std::move(meta) 
+    }; 
+
     if (error_pages.contains(error_code)) {
         // load the user defined page
         HttpPage user_page = error_pages.at(error_code); 
 
         // create the file
         std::string page_path = content_root + user_page.path;
-        std::ifstream error_page_file(page_path);
+        FileDescriptor fd = open(page_path.c_str(), O_RDONLY);
 
-        response = HttpResponse {
-            .response_code = error_code, 
-            .content_type = user_page.type, 
-            .body = std::string(std::istreambuf_iterator<char>{error_page_file}, {}) 
-        };
-
+        if (fd == BAD_FD) {
+            // use the internal page if the file still can't be found;
+            response = default_error_page;
+        } else {
+            response = HttpResponse {
+                .response_code = error_code, 
+                .content_type = user_page.type, 
+                .body_variant = fd
+            };
+        }
     }
     else {
-        std::string meta = HttpResponse::code_to_meta.at(error_code);
         // just use a basic one 
-        response = HttpResponse {
-            .response_code = error_code, 
-            .content_type = ContentType::TEXT,
-            .body = std::move(meta) 
-        };
+        response = default_error_page;
     }
 }
