@@ -11,8 +11,8 @@
 
 constexpr static int BAD_FD = -1;
 
-HttpServer::HttpServer(std::uint16_t port)
-    : port(port), thread_pool() {}
+HttpServer::HttpServer(std::uint16_t port, std::size_t n_threads)
+    : port(port), thread_pool(n_threads) {}
 
 HttpServer::~HttpServer() {
     if (connection_fd == BAD_FD) {
@@ -65,7 +65,7 @@ failure:
 }
 
 void HttpServer::startListening() {
-    std::osyncstream(std::cout) << "Started listening on port" << port << "!\n"; 
+    std::osyncstream(std::cout) << "Started listening on port: " << port << "!\n"; 
 
     while (true) {
         sockaddr_in client_ip_info;
@@ -85,6 +85,7 @@ void HttpServer::startListening() {
 
 
 void HttpServer::handleRequestTask(int client) const {
+    std::osyncstream(std::cout) << "NEW Connection!\n";
     int client_fd = client;
 
     // build a buffer for the message
@@ -110,10 +111,8 @@ void HttpServer::handleRequestTask(int client) const {
 
     HttpRequest request(request_str);
     dispatchResponse(client_fd, request);
-
-    // send and ensure send completes before close
+    // shutdown and return
     close(client_fd);
-
 }
 
 
@@ -136,16 +135,16 @@ void HttpServer::dispatchResponse(const int client, const HttpRequest& req) cons
 
     // construct the response and send it over
     std::string response_head = response.constructHead();
-    send(client, response_head.c_str(), response_head.size(), 0); //MSG_ZEROCOPY?;
+    Send(client, response_head);
     // send the body if needed
-    std::visit([&](auto&& arg) {
-        using T = std::decay_t<decltype(arg)>;
+    std::visit([&](auto&& body) {
+        using T = std::decay_t<decltype(body)>;
 
         if constexpr (std::is_same_v<T, std::string>) {
-            send(client, arg.c_str(), arg.size(), 0); 
+            Send(client, body); 
         } else if constexpr (std::is_same_v<T, FileDescriptor>) {
-            sendfile(client, arg, NULL, util::fileSize(arg));
-            close(arg); // get rid of the file once we're done with it
+            sendFile(client, body, util::fileSize(body));
+            close(body); // get rid of the file once we're done with it
         }
     }, response.body_variant);
 }
@@ -253,5 +252,51 @@ void HttpServer::generateErrorPage(const ResponseCode error_code, HttpResponse& 
     else {
         // just use a basic one 
         response = default_error_page;
+    }
+}
+
+void HttpServer::sendFile(int client_fd, int file_fd, std::size_t size) const { 
+    off_t read_offset = 0; 
+    int bytes_remaining = size; 
+    while (bytes_remaining > 0) {
+        int bytes_sent = sendfile(client_fd, file_fd, &read_offset, bytes_remaining);
+
+        if (bytes_sent == -1 && errno != EINTR && errno != EPIPE) {
+            // something bad happened just return peacefully
+            std::osyncstream(std::cerr) << "Failed to serve file! " << strerror(errno) << "\n";
+            return;
+        }
+
+        // if EINTR happens dont subtract
+        if (bytes_sent != -1)
+            bytes_remaining -= bytes_sent;
+        
+        // no more bytes to send or connection closed
+        if (bytes_sent == 0) break;
+    } 
+}
+
+void HttpServer::Send(int client_fd, const std::string& buffer) const {
+    int offset = 0; 
+    int bytes_remaining = buffer.size();
+
+    while (bytes_remaining > 0) {
+        int bytes_sent = send(client_fd, buffer.c_str() + offset, bytes_remaining, 0);
+        
+        if (bytes_sent == -1 && errno != EINTR && errno != EPIPE) {
+            std::osyncstream(std::cerr) << "Failed to serve request body!\n"; 
+            return;
+        }
+
+        // again, don't subtract if EINTr
+        if (bytes_sent != -1) {
+            offset += bytes_sent;
+            bytes_remaining -= bytes_sent; 
+        }
+
+        // client DC'ed
+        if (bytes_sent == 0) {
+            break;
+        }
     }
 }

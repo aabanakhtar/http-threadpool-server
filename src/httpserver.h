@@ -11,7 +11,7 @@
 
 class HttpServer {
 public:
-    explicit HttpServer(std::uint16_t port);
+    explicit HttpServer(std::uint16_t port, std::size_t n_threads = std::thread::hardware_concurrency());
     ~HttpServer(); 
 
     bool initialize(); 
@@ -48,8 +48,10 @@ private:
 
     // http methods
     void httpGet(const HttpRequest& req, HttpResponse& response) const;
-    // retrieves the file does the response making
 
+
+    void sendFile(int client_fd, int file_fd, std::size_t fileSize) const;
+    void Send(int client_fd, const std::string& buffer) const; 
 private:
     int connection_fd; 
     const std::uint16_t port;

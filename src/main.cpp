@@ -11,8 +11,8 @@
 int main(int argc, char** argv) {
     // prevent closed connections from yeeting us into the unknown
     signal(SIGPIPE, SIG_IGN);
-
-    HttpServer service(8080);
+    
+    HttpServer service(8080, 4); // 4 threads
 
     service.setContentDirectory("/www/");
     service.setDirectoryIndex(HttpPage{
